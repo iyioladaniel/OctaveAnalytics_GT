@@ -1,0 +1,237 @@
+---
+title: "text analysis"
+author: "Solomon"
+output: html_document
+---
+
+```{r, message=FALSE,warning=FALSE}
+library(dplyr)
+dplyr::tbl_df
+library(syuzhet)
+library(twitteR)
+library(graphics)
+library(purrr)
+library(stringr)
+library(tm)
+library(syuzhet)
+library(purrr)
+```
+
+Connect to Twitter API:
+
+```{r}
+api_key<- "6W3lKXB2kyCWZviDXiFfLdeoq"
+api_secret <- "D53y7mSg1vkrK1Sgass7rtuZbQ75Kvf7JS9RemyriHU9ztEgTk"
+access_token <- "1008177025981534209-r0AS13jsqiWaTm2VupJOPnzVseYovv"
+access_token_secret <- "Ilj6KJekgpIabzNDW9p2hCammuODK6130Nh7PbTfYTZ2m"
+
+setup_twitter_oauth(api_key,api_secret,access_token,access_token_secret)
+```
+
+
+Get tweets:
+
+```{r}
+betking_tweets <- searchTwitter("betking", n = 200)
+bet9ja_tweets <- searchTwitter("bet9ja", n = 200)
+betway_tweets <- searchTwitter("betway", n = 200)
+
+bbnaija2020 <- searchTwitter("#bbnaija2020", n=5000, since='2020-09-04') 
+bbnaija1 <- searchTwitter("#bbnaija2020", n=18000)
+
+tail(bbnaija2020$created,600)
+
+head(bbnaija2020)
+
+bbnaija2020<- tbl_df(map_df(bbnaija2020,as.data.frame)) 
+
+write.csv(bbnaija2020, file="bbnaija2020.csv", row.names=FALSE)  
+
+count(bbnaija2020$created == '2020-09-13')
+bbnaija2020$created
+```
+
+Read in data:
+
+```{r}
+setwd("C:/Users/Olayori/Downloads/Daniel/OAGOT/SA")
+bbnaija2020<-read.csv("tweets.csv")
+head(bbnaija2020,4)
+
+```
+
+Clean up data:
+
+```{r}
+bbnaija2020Corpus <-Corpus(VectorSource(bbnaija2020$text))
+inspect(bbnaija2020Corpus[1:10])
+  bbnaija2020Corpus<- tm_map(bbnaija2020Corpus, content_transformer(tolower))
+    bbnaija2020Corpus<- tm_map(bbnaija2020Corpus,removeWords,stopwords("en"))
+      bbnaija2020Corpus<- tm_map( bbnaija2020Corpus,removeNumbers)
+        bbnaija2020Corpus<- tm_map( bbnaija2020Corpus,removePunctuation)
+           
+            removeURL<- function(x) gsub("http[[:alnum:]]*", "", x)   
+              bbnaija2020Corpus<- tm_map(bbnaija2020Corpus,content_transformer(removeURL))
+              
+            removeURL<- function(x) gsub("edua[[:alnum:]]*", "", x)   
+              bbnaija2020Corpus<- tm_map(bbnaija2020Corpus,content_transformer(removeURL))
+              
+  # remove non "American standard code for information interchange (curly quotes and ellipsis)"
+  #  using function from package "textclean"            
+                           
+removeNonAscii<-function(x) textclean::replace_non_ascii(x) 
+  bbnaija2020Corpus<-tm_map(bbnaija2020Corpus,content_transformer(removeNonAscii))
+              
+              bbnaija2020Corpus<- tm_map(bbnaija2020Corpus,removeWords,c("amp","ufef",
+                                                                   "ufeft","uufefuufefuufef","uufef","s","rt"))  
+              
+          bbnaija2020Corpus<- tm_map(bbnaija2020Corpus,stripWhitespace)
+          
+inspect(bbnaija2020Corpus[1:10])
+bbnaija2020Corpus$content[1:33]
+ 
+# stem corpus after sentiment analysis(given my sentiment dictionary choice), but before cluster analysis
+```
+
+Sentiment analysis:
+
+```{r}
+# find count of 8 emotional sentiments
+emotions<-get_nrc_sentiment(bbnaija2020Corpus$content)
+barplot(colSums(emotions),cex.names = .5,
+          col = rainbow(10),
+          main = "Sentiment scores for #bbnaija"
+          )
+```
+
+
+
+```{r}
+# sentiment positivity rating
+get_sentiment(bbnaija2020Corpus$content[1:10])
+sentimentScore <-get_sentiment(bbnaija2020Corpus$content)
+head(sentimentScore,100)
+  sentimentTweets<-dplyr::bind_cols(bbnaija2020,data.frame(sentimentScore))
+head(sentimentTweets,15)
+  # mean of sentiment positivity
+
+  meanSent<-function(i,n){
+    mean(sentimentTweets$sentimentScore[i:n])
+  }
+  
+ (scores<-c(betking=meanSent(1,200),
+    bet9ja=meanSent(201,400),
+      betway=meanSent(401,600)))
+          
+```
+```{r}
+data<-data.frame(text = sapply(bbnaija2020Corpus, as.character), stringsAsFactors = FALSE)
+sentimentT<-dplyr::bind_cols(data,data.frame(sentimentTweets))
+names(sentimentT)
+
+emotions <- get_nrc_sentiment(data$text)
+write.csv(emotions,file='emotions.csv',row.names=FALSE)
+write.csv(sentimentT,file='sentmentT.csv',row.names=FALSE)
+
+
+getHousemate<-function(x){
+  x1<-grep('x',bbnaija2020$text,ignore.case = TRUE) #to get rows of tweets that has housemate name
+  head(x1)
+  x_data<-sentimentT[x1,] #to subset data using the rows of the tweets
+  head(x_data)
+  X_emotions<-get_nrc_sentiment(data[x1,]) #to get emotions from tweets of specified housemate
+}
+
+ls()
+   
+getHousemate(ozo)
+
+head(x_emotions)
+
+barplot(colSums(lay_emotions),cex.names = .5,
+          col = rainbow(10),
+          main = "Sentiment scores for Laycon"
+          )
+tail(bbnaija2020)
+
+wordcloud::wordcloud(data$text)
+```
+```{r}
+#Laycon's Tweets
+head(grep('laycon',bbnaija2020$text),6)
+laycons_tweets<-grep('laycon',bbnaija2020$text,ignore.case = TRUE)
+laycon<-sentimentT[grep('laycon',sentimentTweets$text,ignore.case = TRUE),] #data for laycon
+lay_emotions<-get_nrc_sentiment(data[laycons_tweets,]) #emotions for laycon 
+
+#nengi
+nengi_tweets<-grep('nengi',bbnaija2020$text,ignore.case = TRUE)
+nengi<-sentimentT[nengi_tweets,]
+nengi_emotions<-get_nrc_sentiment(data[nengi_tweets,])
+
+#ozo
+ozo_tweets<-grep('ozo',bbnaija2020$text,ignore.case = TRUE)
+ozo<-sentimentT[ozo_tweets,]
+ozo_emotions<-get_nrc_sentiment(data[ozo_tweets,])
+
+#kiddwaya
+kidd_tweets<-grep('kidd',bbnaija2020$text,ignore.case = TRUE)
+kidd<-sentimentT[kidd_tweets,]
+kidd_emotions<-get_nrc_sentiment(data[kidd_tweets,])
+
+#trikytee
+triky_tweets<-grep('triky',bbnaija2020$text,ignore.case = TRUE)
+triky<-sentimentT[triky_tweets,]
+triky_emotions<-get_nrc_sentiment(data[triky_tweets,])
+
+#vee
+vee_tweets<-grep('vee',bbnaija2020$text,ignore.case = TRUE)
+vee<-sentimentT[vee_tweets,]
+vee_emotions<-get_nrc_sentiment(data[vee_tweets,])
+
+#prince
+prince_tweets<-grep('prince',bbnaija2020$text,ignore.case = TRUE)
+prince<-sentimentT[prince_tweets,]
+prince_emotions<-get_nrc_sentiment(data[prince_tweets,])
+
+#dorathy
+dorathy_tweets<-grep('dorathy',bbnaija2020$text,ignore.case = TRUE)
+dorathy<-sentimentT[dorathy_tweets,]
+dorathy_emotions<-get_nrc_sentiment(data[dorathy_tweets,])
+
+#neo
+neo_tweets<-grep('neo',bbnaija2020$text,ignore.case = TRUE)
+neo<-sentimentT[neo_tweets,]
+neo_emotions<-get_nrc_sentiment(data[neo_tweets,])
+
+write.csv(neo, file="neo.csv", row.names=FALSE) 
+write.csv(neo_emotions, file="neo_emotions.csv", row.names=FALSE) 
+getwd()
+```
+
+
+
+
+
+
+Cluster analysis:
+
+```{r}
+# convert to stem words
+bbnaija2020Corpus<-tm_map(bbnaija2020Corpus,stemDocument)
+bbnaija2020Corpus
+# build document term matrix
+dtm<-DocumentTermMatrix(bbnaija2020Corpus)
+  dtm
+mat<-as.matrix(dtm)
+mat
+# create distance matrix
+d<-dist(mat)
+d
+# input distance matrix into hclust function using method "ward.D"
+groups<-hclust(d,method="ward.D")
+groups
+plot(groups,hang=-1)
+cut<-cutree(groups,k=6)
+newMat<-dplyr::bind_cols(tweets,data.frame(cut))
+table(newMat$screenName,newMat$cut)
+```
